@@ -21,6 +21,7 @@ pipeline {
                 echo '📦 Installing Python dependencies...'
                 sh '''
                     python3 --version
+                    pip3 install --user --upgrade pip
                     pip3 install --user -r requirements.txt
                 '''
             }
@@ -38,15 +39,15 @@ pipeline {
         
         stage('Build Docker Images') {
             steps {
-                echo '🐳 Building Docker images...'
+                echo '🐳 Building Docker images locally...'
                 sh '''
-                    # Build Flask API image
+                    echo "Building Flask API image..."
                     docker build -f docker/Dockerfile.flask -t ${FLASK_IMAGE} .
                     
-                    # Build Streamlit UI image
+                    echo "Building Streamlit UI image..."
                     docker build -f docker/Dockerfile.streamlit -t ${STREAMLIT_IMAGE} .
                     
-                    # List images
+                    echo "Docker images built:"
                     docker images | grep mlops
                 '''
             }
@@ -57,17 +58,22 @@ pipeline {
                 echo '🛑 Stopping old containers...'
                 sh '''
                     docker-compose down || true
-                    docker ps -a
+                    echo "Old containers stopped"
                 '''
             }
         }
         
-        stage('Start New Containers') {
+        stage('Deploy Containers') {
             steps {
-                echo '🚀 Starting new containers...'
+                echo '🚀 Deploying new containers...'
                 sh '''
+                    echo "Starting containers with docker-compose..."
                     docker-compose up -d
-                    sleep 10
+                    
+                    echo "Waiting for containers to start..."
+                    sleep 15
+                    
+                    echo "Container status:"
                     docker-compose ps
                 '''
             }
@@ -77,21 +83,27 @@ pipeline {
             steps {
                 echo '❤️ Performing health checks...'
                 sh '''
-                    # Wait for services to be ready
-                    echo "Waiting for Flask API..."
+                    echo "Checking Flask API health..."
                     for i in {1..30}; do
-                        if curl -f http://localhost:5000/health; then
+                        if curl -f http://localhost:5000/health > /dev/null 2>&1; then
                             echo "✅ Flask API is healthy"
+                            curl -s http://localhost:5000/health | python3 -m json.tool
                             break
                         fi
-                        echo "Waiting... ($i/30)"
+                        echo "Waiting for API... ($i/30)"
                         sleep 2
                     done
                     
-                    # Check Streamlit (it takes longer to start)
-                    echo "Waiting for Streamlit UI..."
-                    sleep 10
+                    echo ""
+                    echo "Checking Streamlit UI..."
+                    sleep 5
+                    if curl -f http://localhost:8501 > /dev/null 2>&1; then
+                        echo "✅ Streamlit UI is accessible"
+                    else
+                        echo "⚠️  Streamlit UI is starting..."
+                    fi
                     
+                    echo ""
                     echo "✅ All services are running"
                 '''
             }
@@ -101,14 +113,20 @@ pipeline {
             steps {
                 echo '🧪 Running tests...'
                 sh '''
-                    # Test API prediction
                     echo "Testing prediction endpoint..."
-                    curl -X POST http://localhost:5000/predict \
+                    RESPONSE=$(curl -s -X POST http://localhost:5000/predict \
                         -H "Content-Type: application/json" \
-                        -d '{"sepal_length": 5.1, "sepal_width": 3.5, "petal_length": 1.4, "petal_width": 0.2}' \
-                        | grep -q "prediction"
+                        -d '{"sepal_length": 5.1, "sepal_width": 3.5, "petal_length": 1.4, "petal_width": 0.2}')
                     
-                    echo "✅ Tests passed"
+                    echo "Response:"
+                    echo "$RESPONSE" | python3 -m json.tool
+                    
+                    if echo "$RESPONSE" | grep -q "prediction"; then
+                        echo "✅ Prediction test passed"
+                    else
+                        echo "❌ Prediction test failed"
+                        exit 1
+                    fi
                 '''
             }
         }
@@ -117,24 +135,41 @@ pipeline {
     post {
         always {
             echo '📊 Pipeline execution completed'
-            sh 'docker-compose ps || true'
+            sh '''
+                echo ""
+                echo "Final container status:"
+                docker-compose ps || true
+            '''
         }
         
         success {
             echo '✅ Pipeline succeeded!'
             echo '🎉 Application deployed successfully'
             sh '''
+                PUBLIC_IP=$(curl -s --connect-timeout 2 http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || hostname -I | awk '{print $1}')
+                echo ""
                 echo "=========================================="
+                echo "✅ MLOps Pipeline Deployed Successfully!"
+                echo "=========================================="
+                echo ""
                 echo "Access your application:"
-                echo "  Flask API:     http://$(hostname -I | awk '{print $1}'):5000"
-                echo "  Streamlit UI:  http://$(hostname -I | awk '{print $1}'):8501"
+                echo "  🌐 Streamlit UI:  http://${PUBLIC_IP}:8501"
+                echo "  🔌 Flask API:     http://${PUBLIC_IP}:5000"
+                echo "  ❤️  Health Check:  http://${PUBLIC_IP}:5000/health"
+                echo ""
+                echo "Test the API:"
+                echo "  curl http://${PUBLIC_IP}:5000/health"
                 echo "=========================================="
             '''
         }
         
         failure {
             echo '❌ Pipeline failed!'
-            sh 'docker-compose logs || true'
+            echo 'Checking logs...'
+            sh '''
+                echo "Container logs:"
+                docker-compose logs --tail=50 || true
+            '''
         }
     }
 }
