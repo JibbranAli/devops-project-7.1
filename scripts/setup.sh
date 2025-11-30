@@ -33,7 +33,8 @@ yum update -y
 # Step 2: Install Python 3 and dependencies
 echo ""
 echo "[2/8] 🐍 Installing Python 3 and build tools..."
-yum install -y python3 python3-pip python3-devel gcc gcc-c++ git wget curl tar gzip
+# Note: curl-minimal is already installed on Amazon Linux, skip curl to avoid conflicts
+yum install -y python3 python3-pip python3-devel gcc gcc-c++ git wget tar gzip
 
 python3 --version
 pip3 --version
