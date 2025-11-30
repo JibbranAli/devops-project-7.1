@@ -22,8 +22,16 @@ fi
 ACTUAL_USER=${SUDO_USER:-ec2-user}
 ACTUAL_HOME=$(eval echo ~$ACTUAL_USER)
 
+# Get script directory and project root
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
+
+# Change to project root
+cd "$PROJECT_ROOT"
+
 echo "👤 Running as user: $ACTUAL_USER"
 echo "🖥️  OS: $(cat /etc/os-release | grep PRETTY_NAME | cut -d'"' -f2)"
+echo "📁 Project root: $PROJECT_ROOT"
 echo ""
 
 # Step 1: Update system
