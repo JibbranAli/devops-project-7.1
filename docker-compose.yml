@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  # Flask API service
+  flask-api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.flask
+    container_name: mlops-flask-api
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./app:/app/app:ro
+    networks:
+      - mlops-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Streamlit UI service
+  streamlit-ui:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.streamlit
+    container_name: mlops-streamlit-ui
+    ports:
+      - "8501:8501"
+    depends_on:
+      - flask-api
+    networks:
+      - mlops-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  mlops-network:
+    driver: bridge
