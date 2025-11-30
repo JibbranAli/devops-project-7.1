@@ -147,6 +147,31 @@ Your application is working correctly!
 
 ---
 
+## 🗑️ Cleanup (When Done)
+
+To remove everything and clean up:
+
+```bash
+sudo bash scripts/cleanup.sh
+```
+
+**What this removes:**
+- ✅ Stops and removes all Docker containers
+- ✅ Removes Docker images
+- ✅ Stops Jenkins service
+- ✅ Optionally removes Jenkins completely
+- ✅ Removes trained models
+- ✅ Optionally removes Python packages
+- ✅ Optionally removes Docker
+- ✅ Optionally removes entire project
+
+**Interactive prompts:**
+- You'll be asked what to keep and what to remove
+- Safe defaults to prevent accidental deletion
+- Can keep Docker/Jenkins for future use
+
+---
+
 ## 📊 Complete Flow Summary
 
 ```
